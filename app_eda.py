@@ -4,47 +4,50 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sb
+import pathlib
+from io import BytesIO
+
 
 def run_eda():
-    # 데이터 불러오기
-    df = pd.read_csv('./data/Car_Purchasing_Data.csv')
+    data_path = pathlib.Path(__file__).parent / 'data' / 'Car_Purchasing_Data.csv'
+    df = pd.read_csv(data_path)
 
-    st.text('이 데이터는 Car_Purchasing_Data.csv 데이터입니다')
+    st.markdown("<div class='card'><strong>데이터셋</strong> — Car_Purchasing_Data.csv</div>", unsafe_allow_html=True)
 
-    radio_menu = ['데이터프레임','기본통계']
-    radio_choice=st.radio('선택하세요', radio_menu)
+    radio_menu = ['데이터프레임', '기본통계']
+    radio_choice = st.radio('선택하세요', radio_menu, horizontal=True)
 
     if radio_choice == radio_menu[0]:
         st.dataframe(df)
-    elif radio_choice == radio_menu[1]:
+    else:
         st.dataframe(df.describe())
 
     st.subheader('최대 / 최소값 확인')
-    min_max_menu = df.columns[4:]
+    min_max_menu = list(df.columns[4:])
     select_choice = st.selectbox('컬럼을 선택하세요', min_max_menu)
 
-    print(select_choice)
-
     st.info(f'{select_choice}는 {int(df[select_choice].min())}부터 {int(df[select_choice].max())}가 있습니다.')
-    # 나이대는 20살 부터 70살까지 있다.
-    # # 연봉은 20000달러부터 100000달러까지 있다.
 
     st.subheader('상관관계 분석')
-
-    multi_menu=df.columns[4:]
-    choice_multi_list=st.multiselect('컬럼을 2개 이상 선택하세요', multi_menu)
+    multi_menu = min_max_menu
+    choice_multi_list = st.multiselect('컬럼을 2개 이상 선택하세요', multi_menu)
 
     if len(choice_multi_list) >= 2:
-        st.dataframe(df[choice_multi_list].corr(numeric_only=True))
+        corr = df[choice_multi_list].corr(numeric_only=True)
+        st.dataframe(corr.style.background_gradient(cmap='coolwarm'))
 
-        fig1 = plt.figure()
-        sb.heatmap(data=df[choice_multi_list].corr(numeric_only=True), annot=True, vmin=-1, vmax=1, cmap='coolwarm', fmt='.2f', linewidths=0.8)
+        fig1, ax1 = plt.subplots(figsize=(6, 4))
+        sb.heatmap(corr, annot=True, vmin=-1, vmax=1, cmap='coolwarm', fmt='.2f', linewidths=0.8, ax=ax1)
         st.pyplot(fig1)
 
-    else :
-        pass
-
     st.subheader('각 컬럼간의 Pair Plot')
-    pair_plot=sb.pairplot(data=df, vars=['Age', 'Annual Salary', 'Credit Card Debt', 'Net Worth',
-                           'Car Purchase Amount'])
-    st.pyplot(pair_plot)
+    vars_for_pair = ['Age', 'Annual Salary', 'Credit Card Debt', 'Net Worth', 'Car Purchase Amount']
+    # Pairplot can be heavy; make it optional
+    if st.checkbox('Pair Plot 보기 (시간이 걸릴 수 있음)'):
+        with st.spinner('Pair plot 생성 중...'):
+            pair = sb.pairplot(df[vars_for_pair].sample(n=min(500, len(df))), diag_kind='kde')
+            buf = BytesIO()
+            pair.savefig(buf, dpi=120, bbox_inches='tight')
+            buf.seek(0)
+            st.image(buf)
+            plt.close('all')
